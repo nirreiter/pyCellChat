@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools >= 82.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "py_cellchat"
+dynamic = ["version"]
+authors = [
+  { name="Pr0fi13", email="pr0fi13thedeveloper@gmail.com" },
+  { name="Nir Reiter", email="nirreiter195@gmail.com" },
+]
+description = "Implementation of the CellChat algorithms & visuals in python"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+dependencies = [
+  "numpy",
+  "scipy",
+  "pandas",
+  "anndata",
+  "scanpy"
+]
+
+[project.urls]
+Homepage = "https://github.com/pr0fi13/pyCellChat"
+Issues = "https://github.com/pypa/pyCellChat/issues"

@@ -1,0 +1,7 @@
+.tox
+.vscode
+.ruff_cache
+dist
+
+*.egg-info
+*.DS_Store
