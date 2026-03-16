@@ -1,14 +1,33 @@
-env_list = ["3.13", "3.12", "3.11", "3.10", "3.9", "lint"]
+env_list = ["3.13", "3.12", "3.11", "lint"]
+
+# ── R reproducibility requirements ────────────────────────────────────────────
+# These are validated before any R output files are regenerated.
+# r_version_minimum: minimum acceptable R major.minor version
+[r_requirements]
+r_version_minimum = "4.4"
+
+[r_requirements.packages]
+CellChat   = "2.1.2"
+jsonlite   = "1.8.9"
+Matrix     = "1.6-5"
+# ──────────────────────────────────────────────────────────────────────────────
 
 [env_run_base]
 description = "Test suite"
 deps = [
-    "pytest>=8"
+    "pytest>=8",
 ]
-commands = [["pytest", "--basetemp={env_tmp_dir}", { replace = "posargs", default = ["tests"], extend = true }]]
+commands = [["pytest", "-s", "--basetemp={env_tmp_dir}", "--import-mode=importlib", { replace = "posargs", default = ["tests"], extend = true }]]
 
 [env.lint]
 description = "Run linters"
 skip_install = true
 deps = ["ruff"]
 commands = [["ruff", "check", { replace = "posargs", default = ".", extend = true}]]
+
+[env.generate-r-outputs]
+description = "Regenerate all R reference output files used by tests"
+deps = [
+    "pytest>=8",
+]
+commands = [["pytest", "--generate-r-outputs", { replace = "posargs", default = ["tests"], extend = true }]]

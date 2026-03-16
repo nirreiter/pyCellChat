@@ -2,6 +2,6 @@
 .vscode
 .ruff_cache
 dist
-
+__pycache__
 *.egg-info
 *.DS_Store
