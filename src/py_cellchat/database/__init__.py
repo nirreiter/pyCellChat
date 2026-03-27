@@ -11,5 +11,3 @@ __all__ = [
     "load_cellchat_db",
     "subset_db",
 ]
-
-__all__ = ["CellChatDB"]
