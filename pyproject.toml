@@ -29,3 +29,9 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/pr0fi13/pyCellChat"
 Issues = "https://github.com/pypa/pyCellChat/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+py_cellchat = ["database/data/**/*.csv"]

@@ -1,3 +1,10 @@
 __version__ = "0.0.1"
 
-from .cellchat import CellChat as CellChat
+from .core.cellchat import CellChat, MatrixType
+from .database.cellchat_db import CellChatDB
+
+__all__ = [
+    "CellChatDB",
+    "CellChat",
+    "MatrixType",
+]

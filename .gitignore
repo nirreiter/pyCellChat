@@ -1,7 +1,10 @@
 .tox
 .vscode
 .ruff_cache
+.github
 dist
+work
+data
 __pycache__
 *.egg-info
 *.DS_Store

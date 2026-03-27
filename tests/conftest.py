@@ -13,7 +13,7 @@ pytest.mark.ground_truth("output_name")
 
 CLI flag
 --------
---generate-r-outputs
+--generate-ground-truth
     Before running tests, validate R / package versions against tox.toml
     and regenerate all R output files referenced by the collected tests,
     running every R script in a single R session.
@@ -22,14 +22,17 @@ CLI flag
 from __future__ import annotations
 
 import json
-import anndata as ad
 import subprocess
 import textwrap
 import tomllib
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+import anndata as ad
+import numpy as np
+import pandas as pd
 import pytest
+from scipy import sparse
 
 if TYPE_CHECKING:
     pass
@@ -37,7 +40,8 @@ if TYPE_CHECKING:
 # ── Paths ─────────────────────────────────────────────────────────────────────
 TESTS_DIR = Path(__file__).parent
 TOX_TOML = TESTS_DIR.parent / "tox.toml"
-GROUND_TRUTH_FILEDIR = TESTS_DIR / "ground_truths"
+GROUND_TRUTH_FILEDIR = TESTS_DIR / "data"
+PBMC3K_H5AD = GROUND_TRUTH_FILEDIR / "pbmc3k" / "pbmc3k.h5ad"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -54,6 +58,23 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "ground_truth(name): name of the R output JSON file (without extension) "
         "this test compares against (lives in tests/ground_truths/<name>.json).",
+    )
+    # Project-convention markers for selection and CI
+    config.addinivalue_line(
+        "markers",
+        "unit: fast unit tests (single-function, no heavy fixtures)",
+    )
+    config.addinivalue_line(
+        "markers",
+        "integration: integration tests (end-to-end or multi-component)",
+    )
+    config.addinivalue_line(
+        "markers",
+        "synthetic: tests that use small synthetic fixtures (fast)",
+    )
+    config.addinivalue_line(
+        "markers",
+        "pbmc3k: tests that use the pbmc3k baseline fixtures (slower)",
     )
 
 
@@ -103,22 +124,7 @@ def pytest_collection_finish(session: pytest.Session) -> None:
 # ground_truth fixture
 # ══════════════════════════════════════════════════════════════════════════════
 
-@pytest.fixture
-def ground_truth(request: pytest.FixtureRequest):
-    """
-    Load the ground truth file associated with the current test via
-    ``@pytest.mark.ground_truth("name")``.
-
-    Returns the parsed JSON content (dict, list, int, float, str …).
-    Skips the test if the output file does not exist yet.
-    """
-    marker = request.node.get_closest_marker("ground_truth")
-    if marker is None:
-        pytest.fail(
-            "The 'ground_truth' fixture requires @pytest.mark.ground_truth('name') "
-            "on the test function."
-        )
-    name: str = marker.args[0]
+def _load_ground_truth_file(name: str) -> Any:
     output_path = GROUND_TRUTH_FILEDIR / name
     if not output_path.exists():
         pytest.fail(
@@ -131,7 +137,123 @@ def ground_truth(request: pytest.FixtureRequest):
         elif output_path.suffix == ".h5ad":
             return ad.read_h5ad(output_path)
         else:
-            pytest.fail(f"Invalid extension for ground truth file '{output_path.relative_to(TESTS_DIR.parent)}', only .json and .h5ad files supported!")
+            pytest.fail(
+                f"Invalid extension for ground truth file "
+                f"'{output_path.relative_to(TESTS_DIR.parent)}', "
+                "only .json and .h5ad files supported!"
+            )
+
+
+@pytest.fixture
+def ground_truth(request: pytest.FixtureRequest):
+    """
+    Load the ground truth file(s) associated with the current test via
+    ``@pytest.mark.ground_truth("name")`` or
+    ``@pytest.mark.ground_truth("name1", "name2", ...)``.
+
+    Single file  → returns the parsed content directly (dict, list, …).
+    Multiple files → returns a list of parsed contents in the same order
+                     as the arguments.
+    """
+    marker = request.node.get_closest_marker("ground_truth")
+    if marker is None:
+        pytest.fail(
+            "The 'ground_truth' fixture requires @pytest.mark.ground_truth('name') "
+            "on the test function."
+        )
+    names: tuple[str, ...] = marker.args
+    if len(names) == 1:
+        return _load_ground_truth_file(names[0])
+    return [_load_ground_truth_file(name) for name in names]
+
+
+@pytest.fixture(scope="session")
+def pbmc3k_h5ad_path() -> Path:
+    if not PBMC3K_H5AD.exists():
+        pytest.fail(f"Baseline test fixture not found: {PBMC3K_H5AD.relative_to(TESTS_DIR.parent)}")
+    return PBMC3K_H5AD
+
+
+@pytest.fixture
+def pbmc3k_adata(pbmc3k_h5ad_path: Path) -> ad.AnnData:
+    return ad.read_h5ad(pbmc3k_h5ad_path)
+
+
+@pytest.fixture
+def pbmc3k_dense_adata(pbmc3k_adata: ad.AnnData) -> ad.AnnData:
+    adata = pbmc3k_adata.copy()
+    adata.X = _to_dense_matrix(adata.X)
+    for layer_name in list(adata.layers.keys()):
+        adata.layers[layer_name] = _to_dense_matrix(adata.layers[layer_name])
+    return adata
+
+
+@pytest.fixture
+def pbmc3k_sparse_adata(pbmc3k_adata: ad.AnnData) -> ad.AnnData:
+    adata = pbmc3k_adata.copy()
+    adata.X = _to_sparse_matrix(adata.X)
+    for layer_name in list(adata.layers.keys()):
+        adata.layers[layer_name] = _to_sparse_matrix(adata.layers[layer_name])
+    return adata
+
+
+
+@pytest.fixture
+def assert_object_state_keys():
+    def _assert_object_state_keys(snapshot: dict[str, Any], expected_keys: set[str] | list[str]) -> None:
+        missing = sorted(set(expected_keys) - set(snapshot))
+        assert not missing, f"Missing state keys: {missing}"
+
+    return _assert_object_state_keys
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Synthetic fixtures
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _build_synthetic_adata(*, as_sparse: bool = False) -> ad.AnnData:
+    obs = pd.DataFrame(
+        {
+            "cell_type": pd.Categorical(
+                ["A", "A", "A", "A", "B", "B", "B", "B"],
+                categories=["B", "A"],
+                ordered=True,
+            ),
+            "sample": pd.Categorical(
+                ["s1", "s1", "s2", "s2", "s1", "s1", "s2", "s2"],
+                categories=["s1", "s2"],
+                ordered=True,
+            ),
+        },
+        index=["A_s1_1", "A_s1_2", "A_s2_1", "A_s2_2", "B_s1_1", "B_s1_2", "B_s2_1", "B_s2_2"],
+    )
+    var = pd.DataFrame(index=["g1", "g2", "g3", "g4", "g5", "g6", "g7"])
+    matrix = np.array(
+        [
+            [6.0, 0.0, 1.0, 1.0, 5.0, 0.0, 4.0], # A, s1
+            [5.0, 0.0, 0.0, 1.0, 4.0, 0.0, 0.0], # A, s1
+            [6.0, 0.0, 0.0, 1.0, 0.0, 5.0, 0.0], # A, s2
+            [5.0, 0.0, 0.0, 1.0, 0.0, 4.0, 0.0], # A, s2
+            [0.0, 6.0, 1.0, 0.0, 5.0, 0.0, 0.0], # B, s1
+            [0.0, 5.0, 0.0, 0.0, 4.0, 0.0, 0.0], # B, s1
+            [0.0, 6.0, 0.0, 0.0, 0.0, 5.0, 0.0], # B, s2
+            [0.0, 5.0, 0.0, 0.0, 0.0, 4.0, 0.0], # B, s2
+        ],
+        dtype=float,
+    )
+    x = sparse.csr_matrix(matrix) if as_sparse else matrix
+    counts = sparse.csr_matrix(matrix.astype(int)) if as_sparse else matrix.astype(int)
+    return ad.AnnData(X=x, obs=obs, var=var, layers={"counts": counts})
+
+
+@pytest.fixture
+def synthetic_grouped_adata() -> ad.AnnData:
+    return _build_synthetic_adata()
+
+
+@pytest.fixture
+def synthetic_sparse_adata() -> ad.AnnData:
+    return _build_synthetic_adata(as_sparse=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -287,6 +409,7 @@ def _run_r_scripts(r_scripts: list[Path]) -> None:
         }}
 
         run_all()
+        warnings()
         message("[generate-ground-truth] All R output files generated successfully.")
     """)
 
@@ -321,3 +444,15 @@ def _r_string(value: str) -> str:
     """Wrap a Python string as an R string literal (double-quoted, escaped)."""
     escaped = value.replace("\\", "/")  # R prefers forward slashes on all OSes
     return f'"{escaped}"'
+
+
+def _to_dense_matrix(matrix: Any) -> np.ndarray:
+    if sparse.issparse(matrix):
+        return matrix.toarray()
+    return np.asarray(matrix)
+
+
+def _to_sparse_matrix(matrix: Any) -> sparse.csr_matrix:
+    if sparse.issparse(matrix):
+        return matrix.tocsr()
+    return sparse.csr_matrix(np.asarray(matrix))
