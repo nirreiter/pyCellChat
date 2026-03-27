@@ -60,19 +60,8 @@ def test_subset_data_db_genes_intersected(pbmc3k_adata, human_db):
 
     assert result_genes == db_gene_set & adata_gene_set
     assert len(result_genes) > 0  # pbmc3k shares genes with CellChatDB.human
-
-
-@pytest.mark.pbmc3k
-def test_subset_data_db_excludes_non_db_genes(pbmc3k_adata, human_db):
-    """Genes in adata but not in the DB are excluded from adata_signaling."""
-    cellchat = make_cellchat(pbmc3k_adata)
-    cellchat.db = human_db
-
-    cellchat.subset_data()
-
-    adata_sig = cellchat.adata_signaling
-    assert adata_sig is not None
-    # pbmc3k has ~30k genes while CellChatDB has only a few hundred; result must be smaller.
+    
+    # pbmc3k has ~30k genes while CellChatDB has only a few hundred; result should be smaller.
     assert len(adata_sig.var_names) < len(pbmc3k_adata.var_names)
 
 
