@@ -74,9 +74,9 @@ def extract_gene(db: CellChatDB) -> list[str]:
     list[str]
         Deduplicated list of gene symbols used by this database.
     """
-    interaction = db.interaction_input
-    complex_input = db.complex_input
-    cofactor_input = db.cofactor_input
+    interaction = db.interaction
+    complex_input = db.complex
+    cofactor_input = db.cofactor
     gene_info = db.gene_info
 
     ligands = interaction["ligand"].dropna().unique().tolist()

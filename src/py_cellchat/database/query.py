@@ -14,7 +14,7 @@ def subset_db(
     key: str | list[str] = "annotation",
     non_protein: bool = False,
 ) -> CellChatDB:
-    """Return a copy of *db* with ``interaction_input`` filtered by *search*.
+    """Return a copy of *db* with ``interaction`` filtered by *search*.
 
     Mirrors ``subsetDB`` in ``CellChat/R/database.R``.
 
@@ -28,7 +28,7 @@ def subset_db(
         standard protein-signaling categories; ``"Non-protein Signaling"``
         is added when *non_protein* is ``True``.
     key:
-        Column name or list of column names in ``interaction_input`` to
+        Column name or list of column names in ``interaction`` to
         filter on.  When a list, *search* must be a matching list of
         value-lists (one per key).
     non_protein:
@@ -39,10 +39,10 @@ def subset_db(
     Returns
     -------
     CellChatDB
-        A shallow copy of *db* with **only** ``interaction_input`` replaced
+        A shallow copy of *db* with **only** ``interaction`` replaced
         by the filtered DataFrame; all other tables are shared references.
     """
-    interaction = db.interaction_input.copy()
+    interaction = db.interaction.copy()
 
     single_key = isinstance(key, str)
     annotation_default = single_key and key == "annotation"
@@ -72,7 +72,7 @@ def subset_db(
         if single_key:
             if key not in interaction.columns:
                 raise ValueError(
-                    f"Column '{key}' not found in interaction_input. "
+                    f"Column '{key}' not found in interaction. "
                     f"Available columns: {list(interaction.columns)}"
                 )
             interaction = interaction[interaction[key].isin(search)]
@@ -91,10 +91,10 @@ def subset_db(
             for k_i, s_i in zip(key, search):
                 if k_i not in interaction.columns:
                     raise ValueError(
-                        f"Column '{k_i}' not found in interaction_input."
+                        f"Column '{k_i}' not found in interaction."
                     )
                 interaction = interaction[interaction[k_i].isin(s_i)]
 
     result = copy.copy(db)  # shallow copy — share complex/cofactor/gene_info
-    result.interaction_input = interaction
+    result.interaction = interaction
     return result

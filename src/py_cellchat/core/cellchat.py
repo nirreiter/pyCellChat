@@ -6,9 +6,9 @@ from dataclasses import dataclass, field
 import anndata as ad
 import numpy as np
 import pandas as pd
-from py_cellchat.preprocessing import identify_over_expressed_genes
+from ..preprocessing import identify_over_expressed_genes, identify_over_expressed_interactions
 
-from ..database.extract import extract_gene
+from ..database import CellChatDB, extract_gene, load_cellchat_db
 from .matrix import get_adata_matrix_checked
 
 
@@ -18,15 +18,15 @@ class CellChat:
     sample_col: str
     is_merged: bool
     experiment_type: str
-    options: dict[str, Any]
+    # options: dict[str, Any]
     selected_features: np.ndarray | None
     selected_features_df: pd.DataFrame | None
     adata_signaling: ad.AnnData | None
-    net: dict[str, Any]
-    netP: dict[str, Any]
-    images: dict[str, Any]
-    db: Any
-    lr: dict[str, Any]
+    # net: dict[str, Any]
+    # netP: dict[str, Any]
+    # images: dict[str, Any]
+    db: CellChatDB
+    lr: pd.DataFrame | None
 
     def __init__(
         self,
@@ -69,6 +69,10 @@ class CellChat:
         """Return the active grouping series derived from ``adata.obs``."""
         return self.adata.obs[self.group_by_col]
 
+    def load_database(self, species: str):
+        self.db = load_cellchat_db(species)
+        
+
     def subset_data(
         self,
         features: list[str] | None = None,
@@ -76,7 +80,7 @@ class CellChat:
         # Annotation ordering side-effect: matches R's in-place sort of
         # object@DB$interaction before gene extraction.
         if self.db is not None:
-            interaction = self.db.interaction_input
+            interaction = self.db.interaction
             if (
                 "annotation" in interaction.columns
                 and interaction["annotation"].nunique() > 1
@@ -90,7 +94,7 @@ class CellChat:
                 cat_type = pd.CategoricalDtype(
                     categories=_ANNOTATION_ORDER, ordered=True
                 )
-                self.db.interaction_input = interaction.assign(
+                self.db.interaction = interaction.assign(
                     annotation=interaction["annotation"].astype(cat_type)
                 ).sort_values("annotation").assign(
                     annotation=lambda df: df["annotation"].astype(str)
@@ -110,7 +114,7 @@ class CellChat:
 
     def identify_over_expressed_genes(
         self,
-        inplace=True,
+        inplace = True,
         min_cells: int = 10,
         only_pos: bool = True,
         features: list[str] | pd.Index[str] | None = None,
@@ -136,8 +140,18 @@ class CellChat:
         )
         
 
-    def identify_over_expressed_interactions(self):
-        raise NotImplementedError()
+    def identify_over_expressed_interactions(
+        self,
+        variable_both: bool = True,
+        features=None,
+        inplace: bool = True,
+    ):
+        return identify_over_expressed_interactions(
+            self,
+            variable_both=variable_both,
+            features=features,
+            inplace=inplace,
+        )
 
     def compute_communication_probability(self):
         raise NotImplementedError()
@@ -202,7 +216,7 @@ class CellChatState:
     netP: dict[str, Any] = field(default_factory=dict)
     images: dict[str, Any] = field(default_factory=dict)
     db: Any = None
-    lr: dict[str, Any] = field(default_factory=dict)
+    lr: pd.DataFrame | None = None
     var_features: dict[str, Any] = field(default_factory=dict)
 
 

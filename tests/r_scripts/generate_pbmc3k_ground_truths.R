@@ -194,3 +194,57 @@ write_ground_truth(
     feature_table = feature_signature(full_gene_cellchat@var.features$features.info)
   )
 )
+
+# ── identifyOverExpressedInteractions ground truths ────────────────────────────
+
+# Shared setup: subsetData + identifyOverExpressedGenes on marker panel.
+# @DB must be set explicitly — createCellChat does not assign a default database.
+ioi_base_cellchat <- createCellChat(object = expr, meta = meta, group.by = "cell_type")
+ioi_base_cellchat@DB <- CellChatDB.human
+ioi_base_cellchat <- subsetData(ioi_base_cellchat)
+ioi_base_cellchat <- identifyOverExpressedGenes(
+  ioi_base_cellchat,
+  min.cells = 10,
+  do.fast = FALSE,
+)
+
+# variable.both = TRUE (default)
+ioi_variable_both_cellchat <- identifyOverExpressedInteractions(
+  ioi_base_cellchat,
+  variable.both = TRUE
+)
+write_ground_truth(
+  "identify_over_expressed_interactions_variable_both.json",
+  list(
+    lr_sig_names = as.list(rownames(ioi_variable_both_cellchat@LR$LRsig))
+  )
+)
+
+str(ioi_variable_both_cellchat@LR$LRsig)
+
+# variable.both = FALSE
+ioi_variable_one_cellchat <- identifyOverExpressedInteractions(
+  ioi_base_cellchat,
+  variable.both = FALSE
+)
+write_ground_truth(
+  "identify_over_expressed_interactions_variable_one.json",
+  list(
+    lr_sig_names = as.list(rownames(ioi_variable_one_cellchat@LR$LRsig))
+  )
+)
+
+# explicit features (bypasses identifyOverExpressedGenes — no @var.features needed)
+ioi_explicit_cellchat <- createCellChat(object = expr, meta = meta, group.by = "cell_type")
+ioi_explicit_cellchat@DB <- CellChatDB.human
+ioi_explicit_cellchat <- subsetData(ioi_explicit_cellchat)
+ioi_explicit_cellchat <- identifyOverExpressedInteractions(
+  ioi_explicit_cellchat,
+  features = marker_panel
+)
+write_ground_truth(
+  "identify_over_expressed_interactions_explicit_features.json",
+  list(
+    lr_sig_names = as.list(rownames(ioi_explicit_cellchat@LR$LRsig))
+  )
+)

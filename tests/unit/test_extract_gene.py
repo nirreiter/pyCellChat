@@ -127,9 +127,9 @@ def _make_db(
     gene_info = make_gene_info(*dict.fromkeys(g for g in all_expected if g))
 
     return CellChatDB(
-        interaction_input=interaction,
-        complex_input=complex_input,
-        cofactor_input=cofactor_input,
+        interaction=interaction,
+        complex=complex_input,
+        cofactor=cofactor_input,
         gene_info=gene_info,
     )
 

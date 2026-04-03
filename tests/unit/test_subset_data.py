@@ -86,7 +86,7 @@ def test_subset_data_no_db_full_copy(synthetic_grouped_adata):
 # Annotation sort side-effect
 # ══════════════════════════════════════════════════════════════════════════════
 # The adata gene names (g1-g7) do not match any CellChatDB gene symbols, so
-# adata_signaling will be empty — but the sort side-effect on db.interaction_input
+# adata_signaling will be empty — but the sort side-effect on db.interaction
 # happens before the gene intersection and is what these tests verify.
 
 _CANONICAL_ORDER = [
@@ -100,17 +100,17 @@ _CANONICAL_ORDER = [
 @pytest.mark.synthetic
 def test_subset_data_annotation_sort_sideeffect(synthetic_grouped_adata, human_db):
     # Shuffle the interaction rows before attaching to ensure the sort is needed.
-    # A new CellChatDB with a shuffled interaction_input is used so the
+    # A new CellChatDB with a shuffled interaction is used so the
     # module-scoped human_db fixture is not mutated.
     db_copy = copy.copy(human_db)
-    db_copy.interaction_input = human_db.interaction_input.sample(frac=1, random_state=42)
+    db_copy.interaction = human_db.interaction.sample(frac=1, random_state=42)
 
     cellchat = make_cellchat(synthetic_grouped_adata)
     cellchat.db = db_copy
 
     cellchat.subset_data()
 
-    annotations = cellchat.db.interaction_input["annotation"].tolist()
+    annotations = cellchat.db.interaction["annotation"].tolist()
     ranks = [_CANONICAL_ORDER.index(a) for a in annotations if a in _CANONICAL_ORDER]
     assert ranks == sorted(ranks)
 
@@ -121,14 +121,14 @@ def test_subset_data_annotation_single_value_no_sort(synthetic_grouped_adata):
     # Use the real DB filtered to a single category so this test never depends on
     # a hand-crafted synthetic DB.
     single_annotation_db = subset_db(load_cellchat_db("human"), search=["Secreted Signaling"])
-    original_index = single_annotation_db.interaction_input.index.tolist()
+    original_index = single_annotation_db.interaction.index.tolist()
 
     cellchat = make_cellchat(synthetic_grouped_adata)
     cellchat.db = single_annotation_db
 
     cellchat.subset_data()
 
-    assert cellchat.db.interaction_input.index.tolist() == original_index
+    assert cellchat.db.interaction.index.tolist() == original_index
 
 
 # ══════════════════════════════════════════════════════════════════════════════

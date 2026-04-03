@@ -175,5 +175,5 @@ def test_constructor_prefers_samples_column_when_present(pbmc3k_adata):
 
 def test_database_scaffold_export():
     db = CellChatDB()
-    assert db.interaction_input.empty
+    assert db.interaction.empty
     assert db.metadata == {}

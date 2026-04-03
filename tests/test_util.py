@@ -7,6 +7,7 @@ import anndata as ad
 from py_cellchat import CellChat
 
 from collections.abc import Sequence
+from typing import Counter
 
 
 def _approx_equal(a: object, b: object) -> bool:
@@ -18,11 +19,14 @@ def _approx_equal(a: object, b: object) -> bool:
     return a == b
 
 
-def assert_compare(obj1, obj2):
-    list1 = sorted(obj1)
-    list2 = sorted(obj2)
-    assert len(list1) == len(list2) 
-    assert all(_approx_equal(a, b) for a, b in zip(list1, list2))
+def assert_compare(obj1, obj2, is_numeric=False):
+	if is_numeric:
+		list1 = sorted(obj1)
+		list2 = sorted(obj2)
+		assert len(list1) == len(list2) 
+		assert all(_approx_equal(a, b) for a, b in zip(list1, list2))
+	else:
+		assert Counter(obj1) == Counter(obj2)
 
 
 def make_cellchat(adata: ad.AnnData, *, sample_column: str | None = None) -> CellChat:

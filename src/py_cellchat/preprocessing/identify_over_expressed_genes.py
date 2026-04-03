@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import pandas as pd
@@ -8,9 +8,12 @@ import scanpy as sc
 from scipy import sparse, stats
 from ..core.matrix import MatrixType
 
+if TYPE_CHECKING:
+    from ..core.cellchat import CellChat
+
 def identify_over_expressed_genes(
-    cellchat,
-    inplace=True,
+    cellchat: CellChat,
+    inplace = True,
     min_cells: int = 10,
     only_pos: bool = True,
     features: list[str] | pd.Index[str] | None = None,

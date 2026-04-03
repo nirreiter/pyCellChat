@@ -79,7 +79,7 @@ def test_identify_over_expressed_genes_de(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 @pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_genes_de_marker_panel_threshold_logfc.json")
@@ -102,7 +102,7 @@ def test_identify_over_expressed_genes_de_threshold_logfc(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 @pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_genes_de_marker_panel_only_pos_false.json")
@@ -125,7 +125,7 @@ def test_identify_over_expressed_genes_de_only_pos_false(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 @pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_genes_de_marker_panel_inplace_false.json")
@@ -191,7 +191,7 @@ def test_identify_over_expressed_genes_de_dense_and_sparse_match(
     sparse.identify_over_expressed_genes(threshold_p=1.0)
 
     assert_compare(selected_features_sorted(dense), selected_features_sorted(sparse))
-    assert_compare(feature_table(dense.selected_features_df), feature_table(sparse.selected_features_df))
+    assert_compare(feature_table(dense.selected_features_df), feature_table(sparse.selected_features_df), is_numeric = True)
 
 
 @pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_genes_de_marker_panel_default_p.json")
@@ -212,7 +212,7 @@ def test_identify_over_expressed_genes_de_default_threshold_p(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 @pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_genes_de_marker_panel_threshold_percent.json")
@@ -236,7 +236,7 @@ def test_identify_over_expressed_genes_de_threshold_percent(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 @pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_genes_de_full_gene_set.json")
@@ -246,7 +246,7 @@ def test_identify_over_expressed_genes_de_full_gene_set(
 ):
     """Full gene set (no features= restriction): exercises chunked Mann-Whitney at scale."""
     cellchat = make_cellchat(pbmc3k_dense_adata)
-    cellchat.db = load_cellchat_db("human")
+    cellchat.load_database("human")
     cellchat.subset_data()
     cellchat.identify_over_expressed_genes()
 
@@ -256,7 +256,7 @@ def test_identify_over_expressed_genes_de_full_gene_set(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 def test_identify_over_expressed_genes_condition_mode_runs_per_group(

@@ -87,7 +87,7 @@ def test_identify_over_expressed_genes_de(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 @pytest.mark.ground_truth("synthetic/identify_over_expressed_genes_de_feature_subset.json")
@@ -109,7 +109,7 @@ def test_identify_over_expressed_genes_feature_subset(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 @pytest.mark.ground_truth("synthetic/identify_over_expressed_genes_de_threshold_percent.json")
@@ -131,7 +131,7 @@ def test_identify_over_expressed_genes_threshold_percent(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 @pytest.mark.ground_truth("synthetic/identify_over_expressed_genes_de_threshold_logfc.json")
@@ -153,7 +153,7 @@ def test_identify_over_expressed_genes_threshold_logfc(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 @pytest.mark.ground_truth("synthetic/identify_over_expressed_genes_de_threshold_p_zero.json")
@@ -172,7 +172,7 @@ def test_identify_over_expressed_genes_threshold_p_zero(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 @pytest.mark.ground_truth("synthetic/identify_over_expressed_genes_de_only_pos_false.json")
@@ -194,7 +194,7 @@ def test_identify_over_expressed_genes_only_pos_false(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 @pytest.mark.ground_truth("synthetic/identify_over_expressed_genes_de_inplace_false.json")
@@ -265,7 +265,7 @@ def test_identify_over_expressed_genes_positive_samples_filters_within_each_grou
     assert_compare(selected_features_sorted(cellchat), ["g5" ,"g5"])
     obs_ft = feature_table(cellchat.selected_features_df)
     expected_ft = [("A", "g5", 4.6201), ("B", "g5", 4.6201)]
-    assert_compare(obs_ft, expected_ft)
+    assert_compare(obs_ft, expected_ft, is_numeric = True)
 
 
 def test_identify_over_expressed_genes_can_ignore_groups_for_condition_comparison(
@@ -283,7 +283,7 @@ def test_identify_over_expressed_genes_can_ignore_groups_for_condition_compariso
     assert_compare(selected_features_sorted(cellchat), ["g5"])
     obs_ft = feature_table(cellchat.selected_features_df)
     expected_ft = [("s1", "g5", 4.6201)]
-    assert_compare(obs_ft, expected_ft)
+    assert_compare(obs_ft, expected_ft, is_numeric = True)
 
 
 def test_identify_over_expressed_genes_requires_subset_data_first(synthetic_grouped_adata):
@@ -375,7 +375,7 @@ def test_identify_over_expressed_genes_positive_samples_with_only_pos_false(
 
     obs_ft = feature_table(cellchat.selected_features_df)
     expected_ft = [("A", "g5", 4.6201), ("A", "g6", -4.6201), ("B", "g5", 4.6201), ("B", "g6", -4.6201)]
-    assert_compare(obs_ft, expected_ft)
+    assert_compare(obs_ft, expected_ft, is_numeric = True)
 
 
 def test_identify_over_expressed_genes_requires_sample_column_for_positive_samples(
@@ -400,7 +400,7 @@ def test_identify_over_expressed_genes_dense_and_sparse_match(synthetic_grouped_
     sparse.identify_over_expressed_genes(threshold_p=1.0)
 
     assert_compare(selected_features_sorted(dense), selected_features_sorted(sparse))
-    assert_compare(feature_table(dense.selected_features_df), feature_table(sparse.selected_features_df))
+    assert_compare(feature_table(dense.selected_features_df), feature_table(sparse.selected_features_df), is_numeric = True)
 
 
 @pytest.mark.ground_truth("synthetic/identify_over_expressed_genes_de_threshold_logfc_half.json")
@@ -423,7 +423,7 @@ def test_identify_over_expressed_genes_threshold_logfc_half(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 
@@ -444,7 +444,7 @@ def test_identify_over_expressed_genes_threshold_p_half(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 
@@ -469,7 +469,7 @@ def test_identify_over_expressed_genes_threshold_percent_and_logfc(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)
 
 
 
@@ -494,4 +494,4 @@ def test_identify_over_expressed_genes_only_pos_false_with_logfc(
     }
 
     assert_compare(observed["selected_features"], ground_truth["selected_features"])
-    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]))
+    assert_compare(observed["feature_table"], feature_table_from_ground_truth(ground_truth["feature_table"]), is_numeric = True)

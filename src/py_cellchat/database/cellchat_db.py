@@ -11,9 +11,9 @@ _VALID_SPECIES = frozenset({"human", "mouse", "zebrafish"})
 
 @dataclass(slots=True)
 class CellChatDB:
-    interaction_input: pd.DataFrame = field(default_factory=pd.DataFrame)
-    complex_input: pd.DataFrame = field(default_factory=pd.DataFrame)
-    cofactor_input: pd.DataFrame = field(default_factory=pd.DataFrame)
+    interaction: pd.DataFrame = field(default_factory=pd.DataFrame)
+    complex: pd.DataFrame = field(default_factory=pd.DataFrame)
+    cofactor: pd.DataFrame = field(default_factory=pd.DataFrame)
     gene_info: pd.DataFrame = field(default_factory=pd.DataFrame)
     protein_info: pd.DataFrame = field(default_factory=pd.DataFrame)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -44,7 +44,7 @@ class CellChatDB:
 
         def _read(filename: str, index_col: str | None) -> pd.DataFrame:
             with resources.files(data_pkg).joinpath(filename).open("r") as fh:
-                df = pd.read_csv(fh)
+                df = pd.read_csv(fh, keep_default_na=False)
             if index_col is not None and index_col in df.columns:
                 df = df.set_index(index_col)
             return df
@@ -54,10 +54,20 @@ class CellChatDB:
         cofactor_df = _read("cofactor.csv", index_col="index")
         gene_info = _read("gene_info.csv", index_col=None)
 
+        # TODO: This code may not be necessary anymore
+        # R's write.csv emits "" for absent subunit / cofactor slots; pandas
+        # read_csv converts bare "" to NaN by default.  Restore the empty-string
+        # sentinel so that downstream `s != ""` filters work correctly.
+        # subunit_cols = [c for c in complex_df.columns if c.startswith("subunit")]
+        # complex_df[subunit_cols] = complex_df[subunit_cols].fillna("")
+
+        # cofactor_gene_cols = [c for c in cofactor_df.columns if c.startswith("cofactor")]
+        # cofactor_df[cofactor_gene_cols] = cofactor_df[cofactor_gene_cols].fillna("")
+
         return cls(
-            interaction_input=interaction,
-            complex_input=complex_df,
-            cofactor_input=cofactor_df,
+            interaction=interaction,
+            complex=complex_df,
+            cofactor=cofactor_df,
             gene_info=gene_info,
             metadata={"species": species},
         )
