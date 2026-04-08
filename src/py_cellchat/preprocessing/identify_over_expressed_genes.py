@@ -11,16 +11,17 @@ from ..core.matrix import MatrixType
 if TYPE_CHECKING:
     from ..core.cellchat import CellChat
 
+
 def identify_over_expressed_genes(
     cellchat: CellChat,
     inplace = True,
-    min_cells: int = 10,
+    min_cells: int = 10, # only used if do_differential_expression = false
+    do_differential_expression = True,
     only_pos: bool = True,
     features: list[str] | pd.Index[str] | None = None,
     threshold_percent_expressing: float = 0,
     threshold_logfc: float = 0,
     threshold_p: float = 0.05,
-    do_differential_expression = True,
     positive_samples: list[str] | None = None,
     ignore_groups_for_differential_expression=False,
 ):
@@ -105,10 +106,13 @@ def identify_over_expressed_genes(
         # print(X_view[cells_in_control, :])
 
         if threshold_percent_expressing > 0:
-            percent_expressing_in_case = np.mean(X_view[cells_in_case, :] > 0, axis=0) * 100
-            percent_expressing_in_control = (
-                np.mean(X_view[cells_in_control, :] > 0, axis=0) * 100
-            )
+            
+            def _mean_expression_percent(masked_matrix: MatrixType) -> np.ndarray:
+                mean_values = np.mean(masked_matrix > 0, axis=0)
+                return np.asarray(mean_values, dtype=float).reshape(-1) * 100
+            
+            percent_expressing_in_case = _mean_expression_percent(X_view[cells_in_case, :])
+            percent_expressing_in_control = _mean_expression_percent(X_view[cells_in_control, :])
             max_percent = np.maximum(
                 percent_expressing_in_case,
                 percent_expressing_in_control,
@@ -139,7 +143,10 @@ def identify_over_expressed_genes(
         log_fold_change = avg_in_case - avg_in_control
 
         if threshold_logfc > 0:
-            current_feature_mask &= np.abs(log_fold_change) > threshold_logfc
+            if only_pos:
+                current_feature_mask &= log_fold_change > threshold_logfc
+            else:
+                current_feature_mask &= np.abs(log_fold_change) > threshold_logfc
             if np.sum(current_feature_mask) == 0:
                 print(
                     "No features passed the log fold change threshold for "
@@ -216,8 +223,10 @@ def identify_over_expressed_genes(
         # next_start = time.time()
         # print("Create df time:", next_start - current_start)
 
+    selected_features = pd.unique(kept_features["feature"].astype(str))
+
     if inplace:
-        cellchat.selected_features = kept_features["feature"].to_numpy()
+        cellchat.selected_features = np.asarray(selected_features, dtype=str)
         cellchat.selected_features_df = kept_features
     else:
-        return kept_features["feature"]
+        return selected_features

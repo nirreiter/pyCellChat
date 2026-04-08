@@ -7,6 +7,7 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 from ..preprocessing import identify_over_expressed_genes, identify_over_expressed_interactions
+from ..modeling import compute_communication_probability, filter_communication
 
 from ..database import CellChatDB, extract_gene, load_cellchat_db
 from .matrix import get_adata_matrix_checked
@@ -22,7 +23,7 @@ class CellChat:
     selected_features: np.ndarray | None
     selected_features_df: pd.DataFrame | None
     adata_signaling: ad.AnnData | None
-    # net: dict[str, Any]
+    net: dict[str, Any] | None
     # netP: dict[str, Any]
     # images: dict[str, Any]
     db: CellChatDB
@@ -153,11 +154,63 @@ class CellChat:
             inplace=inplace,
         )
 
-    def compute_communication_probability(self):
-        raise NotImplementedError()
+    def compute_communication_probability(
+        self,
+        type: str = "triMean",
+        trim: float = 0.1,
+        lr_use: pd.DataFrame | None = None,
+        raw_use: bool = True,
+        population_size: bool = False,
+        distance_use: bool = True,
+        interaction_range: float = 250,
+        scale_distance: float = 0.01,
+        k_min: int = 10,
+        contact_dependent: bool = True,
+        contact_range: float | None = None,
+        contact_knn_k: int | None = None,
+        contact_dependent_forced: bool = False,
+        do_symmetric: bool = True,
+        nboot: int = 100,
+        seed_use: int = 1,
+        Kh: float = 0.5,
+        n: float = 1,
+    ):
+        return compute_communication_probability(
+            self,
+            type=type,
+            trim=trim,
+            lr_use=lr_use,
+            raw_use=raw_use,
+            population_size=population_size,
+            distance_use=distance_use,
+            interaction_range=interaction_range,
+            scale_distance=scale_distance,
+            k_min=k_min,
+            contact_dependent=contact_dependent,
+            contact_range=contact_range,
+            contact_knn_k=contact_knn_k,
+            contact_dependent_forced=contact_dependent_forced,
+            do_symmetric=do_symmetric,
+            nboot=nboot,
+            seed_use=seed_use,
+            Kh=Kh,
+            n=n,
+        )
 
-    def filter_communication(self):
-        raise NotImplementedError()
+    def filter_communication(
+        self,
+        min_cells: int = 10,
+        min_samples: int | None = None,
+        rare_keep: bool = False,
+        non_filter_keep: bool = False,
+    ):
+        return filter_communication(
+            self,
+            min_cells=min_cells,
+            min_samples=min_samples,
+            rare_keep=rare_keep,
+            non_filter_keep=non_filter_keep,
+        )
 
     def compute_communication_probability_pathways(self):
         raise NotImplementedError()

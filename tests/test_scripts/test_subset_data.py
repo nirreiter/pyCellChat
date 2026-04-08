@@ -10,12 +10,6 @@ from py_cellchat.database import extract_gene, load_cellchat_db, subset_db
 from ..test_util import assert_compare, make_cellchat
 
 
-pytestmark = [
-    pytest.mark.r_script("r_scripts/generate_synthetic_ground_truths.R"),
-    pytest.mark.unit,
-]
-
-
 @pytest.fixture(scope="module")
 def human_db():
     """CellChatDB.human subsetted to the three protein-coding annotation categories."""
@@ -27,8 +21,10 @@ def human_db():
 # ══════════════════════════════════════════════════════════════════════════════
 
 @pytest.mark.synthetic
-@pytest.mark.ground_truth("synthetic/subset_data_explicit.json")
-def test_subset_data(synthetic_grouped_adata, ground_truth):
+@pytest.mark.unit
+@pytest.mark.r_script("r_scripts/generate_database_ground_truth.R")
+@pytest.mark.ground_truth("synthetic/subset_data/subset_data_explicit.json")
+def test_subset_data_explicit_features(synthetic_grouped_adata, ground_truth):
     cellchat = make_cellchat(synthetic_grouped_adata)
 
     cellchat.subset_data(features=["g2", "missing", "g7"])
@@ -45,6 +41,7 @@ def test_subset_data(synthetic_grouped_adata, ground_truth):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @pytest.mark.pbmc3k
+@pytest.mark.integration
 def test_subset_data_db_genes_intersected(pbmc3k_adata, human_db):
     """subset_data() returns exactly the intersection of DB genes and adata genes."""
     cellchat = make_cellchat(pbmc3k_adata)
@@ -70,6 +67,7 @@ def test_subset_data_db_genes_intersected(pbmc3k_adata, human_db):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @pytest.mark.synthetic
+@pytest.mark.unit
 def test_subset_data_no_db_full_copy(synthetic_grouped_adata):
     # Backward compat: no DB → full AnnData copied into adata_signaling.
     cellchat = make_cellchat(synthetic_grouped_adata)
@@ -98,6 +96,7 @@ _CANONICAL_ORDER = [
 
 
 @pytest.mark.synthetic
+@pytest.mark.unit
 def test_subset_data_annotation_sort_sideeffect(synthetic_grouped_adata, human_db):
     # Shuffle the interaction rows before attaching to ensure the sort is needed.
     # A new CellChatDB with a shuffled interaction is used so the
@@ -116,6 +115,7 @@ def test_subset_data_annotation_sort_sideeffect(synthetic_grouped_adata, human_d
 
 
 @pytest.mark.synthetic
+@pytest.mark.unit
 def test_subset_data_annotation_single_value_no_sort(synthetic_grouped_adata):
     # When only one annotation value is present the row order must not change.
     # Use the real DB filtered to a single category so this test never depends on
@@ -136,6 +136,7 @@ def test_subset_data_annotation_single_value_no_sort(synthetic_grouped_adata):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @pytest.mark.synthetic
+@pytest.mark.unit
 def test_subset_data_features_ignores_db(synthetic_grouped_adata, human_db):
     # When features= is provided the DB gene set must not affect the result.
     cellchat = make_cellchat(synthetic_grouped_adata)
@@ -153,6 +154,7 @@ def test_subset_data_features_ignores_db(synthetic_grouped_adata, human_db):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @pytest.mark.pbmc3k
+@pytest.mark.integration
 def test_subset_data_db_sparse_dense_parity(pbmc3k_adata, human_db):
     """Sparse and dense inputs produce identical signaling gene sets."""
     dense_adata = pbmc3k_adata.copy()

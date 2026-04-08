@@ -7,7 +7,7 @@ from ..test_util import assert_compare, make_cellchat
 
 
 pytestmark = [
-    pytest.mark.r_script("r_scripts/generate_pbmc3k_ground_truths.R"),
+    pytest.mark.r_script("r_scripts/generate_ioi_ground_truth.R"),
     pytest.mark.pbmc3k,
     pytest.mark.integration,
 ]
@@ -43,12 +43,12 @@ def _lr_sig_names(cellchat) -> list[str]:
     return cellchat.lr.index.tolist()
 
 
-@pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_interactions_variable_both.json")
+@pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_interactions/identify_over_expressed_interactions_variable_both.json")
 def test_identify_over_expressed_interactions_variable_both(
-    pbmc3k_dense_adata,
+    pbmc3k_sparse_adata,
     ground_truth,
 ):
-    cellchat = make_cellchat(pbmc3k_dense_adata)
+    cellchat = make_cellchat(pbmc3k_sparse_adata)
     cellchat.load_database("human")
     cellchat.subset_data()
     cellchat.identify_over_expressed_genes(min_cells=10)
@@ -58,12 +58,12 @@ def test_identify_over_expressed_interactions_variable_both(
     assert_compare(_lr_sig_names(cellchat), ground_truth["lr_sig_names"])
 
 
-@pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_interactions_variable_one.json")
+@pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_interactions/identify_over_expressed_interactions_variable_one.json")
 def test_identify_over_expressed_interactions_variable_one(
-    pbmc3k_dense_adata,
+    pbmc3k_sparse_adata,
     ground_truth,
 ):
-    cellchat = make_cellchat(pbmc3k_dense_adata)
+    cellchat = make_cellchat(pbmc3k_sparse_adata)
     cellchat.load_database("human")
     cellchat.subset_data()
     cellchat.identify_over_expressed_genes(min_cells=10)
@@ -72,12 +72,12 @@ def test_identify_over_expressed_interactions_variable_one(
     assert_compare(_lr_sig_names(cellchat), ground_truth["lr_sig_names"])
 
 
-@pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_interactions_variable_both.json")
+@pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_interactions/identify_over_expressed_interactions_variable_both.json")
 def test_identify_over_expressed_interactions_inplace_false(
-    pbmc3k_dense_adata,
+    pbmc3k_sparse_adata,
     ground_truth,
 ):
-    cellchat = make_cellchat(pbmc3k_dense_adata)
+    cellchat = make_cellchat(pbmc3k_sparse_adata)
     cellchat.load_database("human")
     cellchat.subset_data()
     cellchat.identify_over_expressed_genes(min_cells=10)
@@ -92,13 +92,13 @@ def test_identify_over_expressed_interactions_inplace_false(
     assert_compare(result.index.tolist(), ground_truth["lr_sig_names"])
 
 
-@pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_interactions_explicit_features.json")
+@pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_interactions/identify_over_expressed_interactions_explicit_features.json")
 def test_identify_over_expressed_interactions_explicit_features(
-    pbmc3k_dense_adata,
+    pbmc3k_sparse_adata,
     pbmc3k_feature_panel,
     ground_truth,
 ):
-    cellchat = make_cellchat(pbmc3k_dense_adata)
+    cellchat = make_cellchat(pbmc3k_sparse_adata)
     cellchat.load_database("human")
     cellchat.subset_data()
     cellchat.identify_over_expressed_interactions(features=pbmc3k_feature_panel)

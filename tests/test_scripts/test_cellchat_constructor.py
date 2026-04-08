@@ -10,12 +10,10 @@ from py_cellchat import CellChat, CellChatDB
 from ..test_util import assert_compare, make_cellchat
 
 
-pytestmark = [pytest.mark.unit]
-
-
 @pytest.mark.synthetic
-@pytest.mark.r_script("r_scripts/generate_synthetic_ground_truths.R")
-@pytest.mark.ground_truth("synthetic/constructor_summary.json")
+@pytest.mark.unit
+@pytest.mark.r_script("r_scripts/generate_database_ground_truth.R")
+@pytest.mark.ground_truth("synthetic/cellchat_constructor/constructor_summary.json")
 def test_cellchat_constructor_shape_and_categories(synthetic_grouped_adata, ground_truth):
     cellchat = make_cellchat(synthetic_grouped_adata)
 
@@ -97,6 +95,7 @@ def _snapshot_value(value: Any) -> Any:
 
 
 @pytest.mark.pbmc3k
+@pytest.mark.integration
 def test_constructor_uses_obs_backed_metadata(
     pbmc3k_adata,
     assert_object_state_keys,
@@ -140,6 +139,7 @@ def test_constructor_uses_obs_backed_metadata(
 
 
 @pytest.mark.pbmc3k
+@pytest.mark.integration
 def test_constructor_accepts_sparse_input(pbmc3k_sparse_adata):
     cellchat = CellChat(pbmc3k_sparse_adata, group_by_column="cell_type")
     assert cellchat.adata.n_obs == pbmc3k_sparse_adata.n_obs
@@ -147,6 +147,7 @@ def test_constructor_accepts_sparse_input(pbmc3k_sparse_adata):
 
 
 @pytest.mark.pbmc3k
+@pytest.mark.integration
 def test_constructor_preserves_existing_category_order(pbmc3k_adata):
     adata = pbmc3k_adata.copy()
     ordered_categories = list(reversed(pd.unique(adata.obs["cell_type"].astype(str)).tolist()))
@@ -163,6 +164,7 @@ def test_constructor_preserves_existing_category_order(pbmc3k_adata):
 
 
 @pytest.mark.pbmc3k
+@pytest.mark.integration
 def test_constructor_prefers_samples_column_when_present(pbmc3k_adata):
     adata = pbmc3k_adata.copy()
     adata.obs["sample"] = pd.Categorical(["s1"] * adata.n_obs)
@@ -173,6 +175,7 @@ def test_constructor_prefers_samples_column_when_present(pbmc3k_adata):
     assert list(cellchat.meta[cellchat.sample_col].cat.categories) == ["s1"]
 
 
+@pytest.mark.unit
 def test_database_scaffold_export():
     db = CellChatDB()
     assert db.interaction.empty

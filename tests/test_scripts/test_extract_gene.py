@@ -3,8 +3,10 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from py_cellchat.database import CellChatDB
+from py_cellchat.database import CellChatDB, subset_db, load_cellchat_db
 from py_cellchat.database.extract import extract_gene, extract_gene_subset
+
+from ..test_util import assert_compare
 
 pytestmark = [pytest.mark.unit]
 
@@ -186,3 +188,30 @@ def test_extract_gene_deduplication_across_lr_cofactor():
     )
     result = extract_gene(db)
     assert result.count("SHARED_GENE") == 1
+
+pytestmark = [
+    pytest.mark.r_script("r_scripts/generate_database_ground_truth.R"),
+    pytest.mark.pbmc3k,
+    pytest.mark.integration,
+]
+
+def _sorted_strings(values) -> list[str]:
+    return sorted(str(value) for value in values)
+
+
+@pytest.mark.ground_truth("pbmc3k_benchmark/extract_gene/extract_gene_secreted_cxcl.json")
+def test_extract_gene_secreted_cxcl(pbmc3k_sparse_adata, ground_truth):
+    db = subset_db(
+        load_cellchat_db("human"),
+        key=["annotation", "pathway_name"],
+        search=[["Secreted Signaling"], ["CXCL"]],
+    )
+
+    extracted_genes = _sorted_strings(extract_gene(db))
+    pbmc3k_genes = set(pbmc3k_sparse_adata.var_names.astype(str))
+    pbmc3k_overlap_genes = sorted(set(extracted_genes) & pbmc3k_genes)
+
+    assert extracted_genes
+    assert pbmc3k_overlap_genes
+    assert_compare(extracted_genes, ground_truth["extracted_genes"])
+    assert_compare(pbmc3k_overlap_genes, ground_truth["pbmc3k_overlap_genes"])

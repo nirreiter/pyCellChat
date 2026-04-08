@@ -3,7 +3,9 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from py_cellchat.database import CellChatDB, load_cellchat_db, subset_db
+from py_cellchat.database import CellChatDB, load_cellchat_db, subset_db, extract_gene
+
+from ..test_util import assert_compare
 
 pytestmark = [pytest.mark.unit]
 
@@ -119,3 +121,35 @@ def test_subset_db_non_protein_in_search_enables_flag(human_db):
     # If the source DB contains Non-protein Signaling rows they must appear.
     if "Non-protein Signaling" in set(human_db.interaction["annotation"]):
         assert "Non-protein Signaling" in annotations
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# pbmc3k
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+pytestmark = [
+    pytest.mark.r_script("r_scripts/generate_database_ground_truth.R"),
+    pytest.mark.pbmc3k,
+    pytest.mark.integration,
+]
+
+
+@pytest.mark.ground_truth("pbmc3k_benchmark/subset_db/subset_db_default.json")
+def test_subset_db_pbmc3k_default(pbmc3k_sparse_adata, ground_truth):
+    result = subset_db(load_cellchat_db("human"))
+    pbmc3k_genes = set(pbmc3k_sparse_adata.var_names.astype(str))
+
+    observed = {
+        "interaction_names": result.interaction.index.astype(str).tolist(),
+        "pbmc3k_overlap_genes": sorted(set(extract_gene(result)) & pbmc3k_genes),
+    }
+
+    assert set(result.interaction["annotation"]) <= {
+        "Secreted Signaling",
+        "ECM-Receptor",
+        "Cell-Cell Contact",
+    }
+    assert observed["pbmc3k_overlap_genes"]
+    assert_compare(observed["interaction_names"], ground_truth["interaction_names"])
+    assert_compare(observed["pbmc3k_overlap_genes"], ground_truth["pbmc3k_overlap_genes"])

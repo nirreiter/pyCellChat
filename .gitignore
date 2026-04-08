@@ -2,6 +2,7 @@
 .vscode
 .ruff_cache
 .github
+.lintr
 dist
 work
 data
