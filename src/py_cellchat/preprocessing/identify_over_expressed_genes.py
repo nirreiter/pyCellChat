@@ -23,7 +23,7 @@ def identify_over_expressed_genes(
     threshold_logfc: float = 0,
     threshold_p: float = 0.05,
     positive_samples: list[str] | None = None,
-    ignore_groups_for_differential_expression=False,
+    ignore_groups_for_de=False,
 ):
     if cellchat.adata_signaling is None:
         raise ValueError("Must call CellChat.subset_data() first!")
@@ -64,7 +64,7 @@ def identify_over_expressed_genes(
         samples = adata.obs[cellchat.sample_col]
         cells_in_positive = samples.isin(positive_samples).to_numpy()
 
-    if ignore_groups_for_differential_expression:
+    if ignore_groups_for_de:
         if positive_samples is None:
             raise ValueError("Can't ignore groups for DE if positive_samples is None.")
         cell_masks = [

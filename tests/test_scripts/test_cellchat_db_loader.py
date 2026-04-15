@@ -6,6 +6,14 @@ from py_cellchat.database import CellChatDB, load_cellchat_db
 
 pytestmark = [pytest.mark.unit]
 
+
+@pytest.mark.unit
+def test_database_scaffold_export():
+    db = CellChatDB()
+    assert db.interaction.empty
+    assert db.metadata == {}
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Input validation — no CSV files needed
 # ══════════════════════════════════════════════════════════════════════════════

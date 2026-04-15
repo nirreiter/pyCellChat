@@ -45,7 +45,7 @@ def filter_communication(
         prob[:, global_excluded, :] = 0.0
 
     resolved_min_samples = 1 if min_samples is None else min_samples
-    sample_info = cellchat.meta[cellchat.sample_col]
+    sample_info = cellchat.adata.obs[cellchat.sample_col]
     sample_levels = _levels(sample_info)
     if min_samples is not None and resolved_min_samples > len(sample_levels):
         raise ValueError(
@@ -168,7 +168,7 @@ def _filter_inconsistent_probabilities(
         data_use_avg_present = _aggregate_expression_by_group(
             data_use[sample_mask, :],
             gene_names,
-            group.iloc[sample_mask],
+            _group_codes(group.iloc[sample_mask], present_levels),
             present_levels,
             mean_function,
         )
@@ -225,17 +225,26 @@ def _resolve_pair_lr_use(cellchat: CellChat) -> pd.DataFrame:
     return pair_lr_use
 
 
+def _group_codes(group: pd.Series, group_levels: Sequence[str]) -> np.ndarray:
+    dtype = pd.CategoricalDtype(categories=list(group_levels), ordered=True)
+    codes = group.astype(dtype).cat.codes.to_numpy(dtype=int, copy=False)
+    if np.any(codes < 0):
+        raise ValueError("group contains values outside the declared group levels")
+    return codes
+
+
 def _aggregate_expression_by_group(
     data_use: np.ndarray,
     gene_names: Sequence[str],
-    group: pd.Series,
+    group_codes: np.ndarray,
     group_levels: Sequence[str],
     mean_function,
 ) -> pd.DataFrame:
-    group_values = group.astype(str).to_numpy()
     aggregated = np.zeros((len(gene_names), len(group_levels)), dtype=float)
-    for index, level in enumerate(group_levels):
-        group_mask = group_values == level
+    for index, _level in enumerate(group_levels):
+        group_mask = group_codes == index
         group_matrix = data_use[group_mask, :]
-        aggregated[:, index] = np.apply_along_axis(mean_function, 0, group_matrix)
-    return pd.DataFrame(aggregated, index=gene_names, columns=list(group_levels))
+        if group_matrix.shape[0] == 0:
+            continue
+        aggregated[:, index] = np.asarray(mean_function(group_matrix), dtype=float)
+    return pd.DataFrame(aggregated, index=list(gene_names), columns=list(group_levels))

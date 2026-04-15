@@ -3,6 +3,8 @@ from __future__ import annotations
 import anndata as ad
 import pytest
 
+from py_cellchat import identify_over_expressed_genes, identify_over_expressed_interactions
+
 from ..test_util import assert_compare, make_cellchat
 
 
@@ -51,8 +53,8 @@ def test_identify_over_expressed_interactions_variable_both(
     cellchat = make_cellchat(pbmc3k_sparse_adata)
     cellchat.load_database("human")
     cellchat.subset_data()
-    cellchat.identify_over_expressed_genes(min_cells=10)
-    cellchat.identify_over_expressed_interactions(variable_both=True)
+    identify_over_expressed_genes(cellchat, min_cells=10)
+    identify_over_expressed_interactions(cellchat, variable_both=True)
     # print(_lr_sig_names(cellchat))
     # print(ground_truth["lr_sig_names"])
     assert_compare(_lr_sig_names(cellchat), ground_truth["lr_sig_names"])
@@ -66,8 +68,8 @@ def test_identify_over_expressed_interactions_variable_one(
     cellchat = make_cellchat(pbmc3k_sparse_adata)
     cellchat.load_database("human")
     cellchat.subset_data()
-    cellchat.identify_over_expressed_genes(min_cells=10)
-    cellchat.identify_over_expressed_interactions(variable_both=False)
+    identify_over_expressed_genes(cellchat, min_cells=10)
+    identify_over_expressed_interactions(cellchat, variable_both=False)
 
     assert_compare(_lr_sig_names(cellchat), ground_truth["lr_sig_names"])
 
@@ -80,8 +82,8 @@ def test_identify_over_expressed_interactions_inplace_false(
     cellchat = make_cellchat(pbmc3k_sparse_adata)
     cellchat.load_database("human")
     cellchat.subset_data()
-    cellchat.identify_over_expressed_genes(min_cells=10)
-    result = cellchat.identify_over_expressed_interactions(inplace=False)
+    identify_over_expressed_genes(cellchat, min_cells=10)
+    result = identify_over_expressed_interactions(cellchat, inplace=False)
 
     assert result is not None
     assert cellchat.lr is None
@@ -101,6 +103,6 @@ def test_identify_over_expressed_interactions_explicit_features(
     cellchat = make_cellchat(pbmc3k_sparse_adata)
     cellchat.load_database("human")
     cellchat.subset_data()
-    cellchat.identify_over_expressed_interactions(features=pbmc3k_feature_panel)
+    identify_over_expressed_interactions(cellchat, features=pbmc3k_feature_panel)
 
     assert_compare(_lr_sig_names(cellchat), ground_truth["lr_sig_names"])

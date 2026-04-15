@@ -7,10 +7,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from py_cellchat.database import CellChatDB
-from ..test_util import assert_compare
-
-from ..test_util import make_cellchat
+from py_cellchat import CellChatDB, identify_over_expressed_genes, identify_over_expressed_interactions, compute_communication_probability, filter_communication
+from ..test_util import assert_compare, make_cellchat
 
 
 def _filter_db() -> CellChatDB:
@@ -36,7 +34,7 @@ def _run_synthetic_pipeline(adata: ad.AnnData):
     cellchat.db = _filter_db()
     cellchat.subset_data(features=["g1", "g2", "g5", "g7"])
     cellchat.lr = cellchat.db.interaction.copy()
-    cellchat.compute_communication_probability()
+    compute_communication_probability(cellchat)
     return cellchat
 
 
@@ -44,9 +42,9 @@ def _run_pbmc_pipeline(adata: ad.AnnData):
     cellchat = make_cellchat(adata)
     cellchat.load_database("human")
     cellchat.subset_data()
-    cellchat.identify_over_expressed_genes()
-    cellchat.identify_over_expressed_interactions()
-    cellchat.compute_communication_probability()
+    identify_over_expressed_genes(cellchat, )
+    identify_over_expressed_interactions(cellchat, )
+    compute_communication_probability(cellchat)
     return cellchat
 
 
@@ -163,7 +161,7 @@ def test_filter_communication_min_cells_non_filter_keep(
         "pval": original_pval.copy(),
     }
 
-    cellchat.filter_communication(min_cells=min_cells, non_filter_keep=True)
+    filter_communication(cellchat, min_cells=min_cells, non_filter_keep=True)
 
     np.testing.assert_allclose(cellchat.net["prob_non_filter"], original_prob)
     np.testing.assert_allclose(cellchat.net["pval_non_filter"], original_pval)
@@ -190,7 +188,7 @@ def test_filter_communication_invalid_net(
     cellchat.net = net
 
     with pytest.raises(ValueError, match=re.escape(message)):
-        cellchat.filter_communication()
+        filter_communication(cellchat)
 
 
 @pytest.mark.synthetic
@@ -205,7 +203,7 @@ def test_filter_communication_min_samples_gt_samples(
     }
 
     with pytest.raises(ValueError, match="There are only 2 samples"):
-        cellchat.filter_communication(min_samples=3)
+        filter_communication(cellchat, min_samples=3)
 
 
 @pytest.mark.synthetic
@@ -214,19 +212,21 @@ def test_filter_communication_min_samples_dense_sparse(
     synthetic_grouped_adata,
     synthetic_sparse_adata,
 ):
-    dense = _run_synthetic_pipeline(synthetic_grouped_adata)
-    sparse = _run_synthetic_pipeline(synthetic_sparse_adata)
+    dense_cellchat = _run_synthetic_pipeline(synthetic_grouped_adata)
+    sparse_cellchat = _run_synthetic_pipeline(synthetic_sparse_adata)
 
-    dense.filter_communication(min_cells=1, min_samples=2)
-    sparse.filter_communication(min_cells=1, min_samples=2)
+    filter_communication(dense_cellchat, min_cells=1, min_samples=2)
+    filter_communication(sparse_cellchat, min_cells=1, min_samples=2)
 
-    np.testing.assert_allclose(dense.net["prob"], sparse.net["prob"])
-    np.testing.assert_allclose(dense.net["pval"], sparse.net["pval"])
+    assert dense_cellchat.net is not None
+    assert sparse_cellchat.net is not None
+    np.testing.assert_allclose(dense_cellchat.net["prob"], sparse_cellchat.net["prob"])
+    np.testing.assert_allclose(dense_cellchat.net["pval"], sparse_cellchat.net["pval"])
 
-    g1_index = _lr_index(dense, "g1_g2")
-    g5_index = _lr_index(dense, "g5_g2")
-    assert float(dense.net["prob"][1, 0, g1_index]) > 0.0
-    assert float(dense.net["prob"][1, 0, g5_index]) == 0.0
+    g1_index = _lr_index(dense_cellchat, "g1_g2")
+    g5_index = _lr_index(dense_cellchat, "g5_g2")
+    assert float(dense_cellchat.net["prob"][1, 0, g1_index]) > 0.0
+    assert float(dense_cellchat.net["prob"][1, 0, g5_index]) == 0.0
 
 
 @pytest.mark.synthetic
@@ -235,10 +235,12 @@ def test_filter_communication_rare_keep_true():
     without_rare_keep = _run_synthetic_pipeline(_rare_population_adata())
     with_rare_keep = _run_synthetic_pipeline(_rare_population_adata())
 
-    without_rare_keep.filter_communication(min_cells=1, min_samples=2, rare_keep=False)
-    with_rare_keep.filter_communication(min_cells=1, min_samples=2, rare_keep=True)
+    filter_communication(without_rare_keep, min_cells=1, min_samples=2, rare_keep=False)
+    filter_communication(with_rare_keep, min_cells=1, min_samples=2, rare_keep=True)
 
     g7_index = _lr_index(with_rare_keep, "g7_g2")
+    assert without_rare_keep.net is not None
+    assert with_rare_keep.net is not None
     assert float(without_rare_keep.net["prob"][2, 1, g7_index]) == 0.0
     assert float(with_rare_keep.net["prob"][2, 1, g7_index]) > 0.0
 
@@ -252,8 +254,9 @@ def test_filter_communication_pbmc3k_default(
     ground_truth,
 ):
     cellchat = _run_pbmc_pipeline(pbmc3k_sparse_adata)
-    cellchat.filter_communication()
+    filter_communication(cellchat)
 
+    assert cellchat.net is not None
     assert list(cellchat.net["prob"].shape) == ground_truth["prob_shape"]
     assert list(cellchat.net["pval"].shape) == ground_truth["pval_shape"]
     assert float(cellchat.net["prob"].sum()) == pytest.approx(ground_truth["prob_sum"])
@@ -272,14 +275,16 @@ def test_filter_communication_pbmc3k_dense_sparse(
     pbmc3k_dense_adata,
     pbmc3k_sparse_adata,
 ):
-    dense = _run_pbmc_pipeline(pbmc3k_dense_adata)
-    sparse = _run_pbmc_pipeline(pbmc3k_sparse_adata)
+    dense_cellchat = _run_pbmc_pipeline(pbmc3k_dense_adata)
+    sparse_cellchat = _run_pbmc_pipeline(pbmc3k_sparse_adata)
 
-    dense.filter_communication()
-    sparse.filter_communication()
-
-    assert list(dense.net["prob"].shape) == list(sparse.net["prob"].shape)
-    assert list(dense.net["pval"].shape) == list(sparse.net["pval"].shape)
-    np.testing.assert_allclose(dense.net["prob"], sparse.net["prob"])
-    np.testing.assert_allclose(dense.net["pval"], sparse.net["pval"])
-    assert_compare(_communication_signature(dense), _communication_signature(sparse), is_numeric=True)
+    filter_communication(dense_cellchat)
+    filter_communication(sparse_cellchat)
+    
+    assert dense_cellchat.net is not None
+    assert sparse_cellchat.net is not None
+    assert list(dense_cellchat.net["prob"].shape) == list(sparse_cellchat.net["prob"].shape)
+    assert list(dense_cellchat.net["pval"].shape) == list(sparse_cellchat.net["pval"].shape)
+    np.testing.assert_allclose(dense_cellchat.net["prob"], sparse_cellchat.net["prob"])
+    np.testing.assert_allclose(dense_cellchat.net["pval"], sparse_cellchat.net["pval"])
+    assert_compare(_communication_signature(dense_cellchat), _communication_signature(sparse_cellchat), is_numeric=True)

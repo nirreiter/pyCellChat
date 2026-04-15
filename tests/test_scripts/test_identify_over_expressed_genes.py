@@ -1,14 +1,42 @@
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any, Sequence, cast
 
 import numpy as np
 import pandas as pd
+import anndata as ad
 import pytest
 
-from py_cellchat import CellChat
+from py_cellchat import CellChat, identify_over_expressed_genes
 
-from ..test_util import assert_compare, feature_table, feature_table_from_ground_truth, feature_values_sorted, make_cellchat, selected_features_sorted, with_condition_column
+from ..test_util import assert_compare, make_cellchat, with_condition_column
+
+# ── helpers ────────────────────────────────────────────────────────────────────
+
+def feature_values_sorted(values: pd.Series | pd.Index | np.ndarray | Sequence[str]) -> list[str]:
+    if isinstance(values, pd.Series) or isinstance(values, pd.Index) or isinstance(values, np.ndarray):
+        return sorted(values.astype(str).tolist())
+    return sorted([str(value) for value in values])
+
+
+def selected_features_sorted(cellchat: CellChat) -> list[str]:
+    assert cellchat.selected_features is not None
+    return sorted(cellchat.selected_features.astype(str).tolist())
+
+
+def feature_table(feature_table: pd.DataFrame | None) -> list[tuple]:
+	if feature_table is None or feature_table.empty:
+		return []
+
+	normalized = feature_table.loc[:, ["group", "feature", "logfc"]].copy()
+	normalized["group"] = normalized["group"].astype(str)
+	normalized["feature"] = normalized["feature"].astype(str)
+	normalized["logfc"] = normalized["logfc"].astype(float).round(5) # 5 decimal places matches R settings
+	normalized = normalized.sort_values(["group", "feature", "logfc"], kind="stable")
+	return list(normalized.itertuples(index=False, name=None))
+
+def feature_table_from_ground_truth(feature_table: list[dict[str, object]]) -> list[tuple]:
+	return [(row["group"], row["feature"], row["logFC"]) for row in feature_table]
 
 
 pytestmark = [
@@ -19,14 +47,17 @@ pytestmark = [
 
 ALL_SYNTHETIC_FEATURES = ["g1", "g2", "g3", "g4", "g5", "g6", "g7"]
 
+# ── synthetic ────────────────────────────────────────────────────────────────────
 
+@pytest.mark.synthetic
 def test_identify_over_expressed_genes_requires_subset_data_first(synthetic_grouped_adata):
     cellchat = make_cellchat(synthetic_grouped_adata)
 
     with pytest.raises(ValueError, match=r"Must call CellChat.subset_data\(\) first"):
-        cellchat.identify_over_expressed_genes()
+        identify_over_expressed_genes(cellchat)
 
 
+@pytest.mark.synthetic
 def test_identify_over_expressed_genes_requires_positive_samples_when_ignoring_groups(
     synthetic_grouped_adata,
 ):
@@ -34,11 +65,10 @@ def test_identify_over_expressed_genes_requires_positive_samples_when_ignoring_g
     cellchat.subset_data(features=ALL_SYNTHETIC_FEATURES)
 
     with pytest.raises(ValueError, match="positive_samples is None"):
-        cellchat.identify_over_expressed_genes(
-            ignore_groups_for_differential_expression=True,
-        )
+        identify_over_expressed_genes(cellchat, ignore_groups_for_de=True)
 
 
+@pytest.mark.synthetic
 def test_identify_over_expressed_genes_requires_sample_column_for_positive_samples(
     synthetic_grouped_adata,
 ):
@@ -47,20 +77,21 @@ def test_identify_over_expressed_genes_requires_sample_column_for_positive_sampl
     cast(Any, cellchat).sample_col = None
 
     with pytest.raises(ValueError, match="No sample column"):
-        cellchat.identify_over_expressed_genes(positive_samples=["s1"])
+        identify_over_expressed_genes(cellchat, positive_samples=["s1"])
 
 
+@pytest.mark.synthetic
 def test_identify_over_expressed_genes_updates_python_state(synthetic_grouped_adata):
     cellchat = CellChat(synthetic_grouped_adata, group_by_column="cell_type")
     cellchat.subset_data()
-    cellchat.identify_over_expressed_genes(do_differential_expression=False)
+    identify_over_expressed_genes(cellchat, do_differential_expression=False)
 
     assert cellchat.selected_features is not None
     assert cellchat.selected_features_df is None
 
     cellchat = CellChat(synthetic_grouped_adata, group_by_column="cell_type")
     cellchat.subset_data()
-    cellchat.identify_over_expressed_genes(do_differential_expression=True)
+    identify_over_expressed_genes(cellchat, do_differential_expression=True)
     
     assert cellchat.selected_features is not None
     assert len(cellchat.selected_features) > 0
@@ -79,7 +110,7 @@ def test_identify_over_expressed_genes_no_de_synthetic(
 ):
     cellchat = make_cellchat(synthetic_grouped_adata)
     cellchat.subset_data(features=ALL_SYNTHETIC_FEATURES)
-    cellchat.identify_over_expressed_genes(
+    identify_over_expressed_genes(cellchat, 
         do_differential_expression=False,
         min_cells=min_cells,
     )
@@ -88,7 +119,6 @@ def test_identify_over_expressed_genes_no_de_synthetic(
     }
 
     assert_compare(observed["selected_features"], set(ground_truth["selected_features"]))
-
 
 
 @pytest.ground_truth_parameterize(  # pyright: ignore[reportAttributeAccessIssue]
@@ -109,7 +139,7 @@ def test_identify_over_expressed_genes_de_synthetic(
     cellchat = make_cellchat(synthetic_grouped_adata)
 
     cellchat.subset_data(features=ALL_SYNTHETIC_FEATURES)
-    cellchat.identify_over_expressed_genes(
+    identify_over_expressed_genes(cellchat, 
         do_differential_expression=True, 
         threshold_percent_expressing=threshold_percent_expressing,
         threshold_logfc=threshold_logfc,
@@ -134,7 +164,7 @@ def test_identify_over_expressed_genes_feature_subset(
     cellchat = make_cellchat(synthetic_grouped_adata)
 
     cellchat.subset_data(features=ALL_SYNTHETIC_FEATURES)
-    cellchat.identify_over_expressed_genes(
+    identify_over_expressed_genes(cellchat, 
         features=["g1", "g4", "g7", "missing"],
         threshold_p=1.0,
     )
@@ -156,7 +186,7 @@ def test_identify_over_expressed_genes_inplace_false(
     cellchat = make_cellchat(synthetic_grouped_adata)
 
     cellchat.subset_data(features=ALL_SYNTHETIC_FEATURES)
-    returned_features = cellchat.identify_over_expressed_genes(
+    returned_features = identify_over_expressed_genes(cellchat, 
         inplace=False,
         threshold_p=1.0,
     )
@@ -178,7 +208,7 @@ def test_identify_over_expressed_genes_no_de_inplace_false_returns_features_only
     cellchat = make_cellchat(synthetic_grouped_adata)
 
     cellchat.subset_data(features=ALL_SYNTHETIC_FEATURES)
-    returned_features = cellchat.identify_over_expressed_genes(
+    returned_features = identify_over_expressed_genes(cellchat, 
         inplace=False,
         do_differential_expression=False,
         min_cells=2,
@@ -194,7 +224,7 @@ def test_identify_over_expressed_genes_accepts_index_features(synthetic_grouped_
     cellchat = make_cellchat(synthetic_grouped_adata)
 
     cellchat.subset_data(features=ALL_SYNTHETIC_FEATURES)
-    cellchat.identify_over_expressed_genes(
+    identify_over_expressed_genes(cellchat, 
         features=pd.Index(["g1", "g4", "g7", "missing"]),
         threshold_p=1.0,
     )
@@ -208,9 +238,9 @@ def test_identify_over_expressed_genes_can_ignore_groups_for_condition_compariso
     cellchat = make_cellchat(synthetic_grouped_adata)
 
     cellchat.subset_data(features=["g5", "g6"])
-    cellchat.identify_over_expressed_genes(
+    identify_over_expressed_genes(cellchat, 
         positive_samples=["s1"],
-        ignore_groups_for_differential_expression=True,
+        ignore_groups_for_de=True,
         threshold_p=1.0,
     )
 
@@ -227,18 +257,17 @@ def test_identify_over_expressed_genes_dense_and_sparse_match(synthetic_grouped_
     dense.subset_data(features=ALL_SYNTHETIC_FEATURES)
     sparse.subset_data(features=ALL_SYNTHETIC_FEATURES)
 
-    dense.identify_over_expressed_genes(threshold_p=1.0)
-    sparse.identify_over_expressed_genes(threshold_p=1.0)
+    identify_over_expressed_genes(dense, threshold_p=1.0)
+    identify_over_expressed_genes(sparse, threshold_p=1.0)
 
     assert_compare(selected_features_sorted(dense), selected_features_sorted(sparse))
     assert_compare(feature_table(dense.selected_features_df), feature_table(sparse.selected_features_df), is_numeric = True)
 
 
-import anndata as ad
-# import pytest
 
-# from ..test_util import assert_compare, make_cellchat, selected_features_sorted, feature_values_sorted, feature_table, feature_table_from_ground_truth, 
-
+# ══════════════════════════════════════════════════════════════════════════════
+# pbmc3k
+# ══════════════════════════════════════════════════════════════════════════════
 
 pytestmark = [
     pytest.mark.r_script("r_scripts/generate_iog_ground_truth.R"),
@@ -282,7 +311,7 @@ def test_identify_over_expressed_genes_no_de(
     cellchat = make_cellchat(pbmc3k_sparse_adata)
 
     cellchat.subset_data(features=pbmc3k_feature_panel)
-    cellchat.identify_over_expressed_genes(
+    identify_over_expressed_genes(cellchat, 
         do_differential_expression=False,
         min_cells=10,
     )
@@ -303,7 +332,7 @@ def test_identify_over_expressed_genes_de(
     cellchat = make_cellchat(pbmc3k_sparse_adata)
 
     cellchat.subset_data(features=pbmc3k_feature_panel)
-    cellchat.identify_over_expressed_genes(threshold_p=1.0)
+    identify_over_expressed_genes(cellchat, threshold_p=1.0)
 
     observed = {
         "selected_features": selected_features_sorted(cellchat),
@@ -323,7 +352,7 @@ def test_identify_over_expressed_genes_de_threshold_logfc(
     cellchat = make_cellchat(pbmc3k_sparse_adata)
 
     cellchat.subset_data(features=pbmc3k_feature_panel)
-    cellchat.identify_over_expressed_genes(
+    identify_over_expressed_genes(cellchat, 
         threshold_logfc=1.0,
         threshold_p=1.0,
     )
@@ -346,7 +375,7 @@ def test_identify_over_expressed_genes_de_only_pos_false(
     cellchat = make_cellchat(pbmc3k_sparse_adata)
 
     cellchat.subset_data(features=pbmc3k_feature_panel)
-    cellchat.identify_over_expressed_genes(
+    identify_over_expressed_genes(cellchat, 
         only_pos=False,
         threshold_p=1.0,
     )
@@ -369,7 +398,7 @@ def test_identify_over_expressed_genes_de_inplace_false(
     cellchat = make_cellchat(pbmc3k_sparse_adata)
 
     cellchat.subset_data(features=pbmc3k_feature_panel)
-    returned_features = cellchat.identify_over_expressed_genes(
+    returned_features = identify_over_expressed_genes(cellchat, 
         inplace=False,
         threshold_p=1.0,
     )
@@ -390,22 +419,23 @@ def test_identify_over_expressed_genes_no_de_dense_and_sparse_match(
     pbmc3k_sparse_adata,
     pbmc3k_feature_panel,
 ):
-    dense = make_cellchat(pbmc3k_dense_adata)
+    dense_cellchat = make_cellchat(pbmc3k_dense_adata)
     sparse_cellchat = make_cellchat(pbmc3k_sparse_adata)
 
-    dense.subset_data(features=pbmc3k_feature_panel)
+    dense_cellchat.subset_data(features=pbmc3k_feature_panel)
     sparse_cellchat.subset_data(features=pbmc3k_feature_panel)
 
-    dense.identify_over_expressed_genes(
+    identify_over_expressed_genes(
+        dense_cellchat,
         do_differential_expression=False,
         min_cells=10,
     )
-    sparse_cellchat.identify_over_expressed_genes(
+    identify_over_expressed_genes(sparse_cellchat, 
         do_differential_expression=False,
         min_cells=10,
     )
 
-    assert_compare(selected_features_sorted(dense), selected_features_sorted(sparse_cellchat))
+    assert_compare(selected_features_sorted(dense_cellchat), selected_features_sorted(sparse_cellchat))
 
 
 def test_identify_over_expressed_genes_de_dense_and_sparse_match(
@@ -413,17 +443,17 @@ def test_identify_over_expressed_genes_de_dense_and_sparse_match(
     pbmc3k_sparse_adata,
     pbmc3k_feature_panel,
 ):
-    dense = make_cellchat(pbmc3k_dense_adata)
-    sparse = make_cellchat(pbmc3k_sparse_adata)
+    dense_cellchat = make_cellchat(pbmc3k_dense_adata)
+    sparse_cellchat = make_cellchat(pbmc3k_sparse_adata)
 
-    dense.subset_data(features=pbmc3k_feature_panel)
-    sparse.subset_data(features=pbmc3k_feature_panel)
+    dense_cellchat.subset_data(features=pbmc3k_feature_panel)
+    sparse_cellchat.subset_data(features=pbmc3k_feature_panel)
 
-    dense.identify_over_expressed_genes(threshold_p=1.0)
-    sparse.identify_over_expressed_genes(threshold_p=1.0)
+    identify_over_expressed_genes(dense_cellchat, threshold_p=1.0)
+    identify_over_expressed_genes(sparse_cellchat, threshold_p=1.0)
 
-    assert_compare(selected_features_sorted(dense), selected_features_sorted(sparse))
-    assert_compare(feature_table(dense.selected_features_df), feature_table(sparse.selected_features_df), is_numeric = True)
+    assert_compare(selected_features_sorted(dense_cellchat), selected_features_sorted(sparse_cellchat))
+    assert_compare(feature_table(dense_cellchat.selected_features_df), feature_table(sparse_cellchat.selected_features_df), is_numeric = True)
 
 
 @pytest.mark.ground_truth("pbmc3k_benchmark/identify_over_expressed_genes/identify_over_expressed_genes_de_marker_panel_default_p.json")
@@ -436,7 +466,7 @@ def test_identify_over_expressed_genes_de_default_threshold_p(
     cellchat = make_cellchat(pbmc3k_sparse_adata)
 
     cellchat.subset_data(features=pbmc3k_feature_panel)
-    cellchat.identify_over_expressed_genes()
+    identify_over_expressed_genes(cellchat, )
 
     observed = {
         "selected_features": selected_features_sorted(cellchat),
@@ -457,7 +487,7 @@ def test_identify_over_expressed_genes_de_threshold_percent(
     cellchat = make_cellchat(pbmc3k_sparse_adata)
 
     cellchat.subset_data(features=pbmc3k_feature_panel)
-    cellchat.identify_over_expressed_genes(
+    identify_over_expressed_genes(cellchat, 
         threshold_percent_expressing=10.0,
         threshold_p=1.0,
     )
@@ -480,7 +510,7 @@ def test_identify_over_expressed_genes_de_full_gene_set(
     cellchat = make_cellchat(pbmc3k_sparse_adata)
     cellchat.load_database("human")
     cellchat.subset_data()
-    cellchat.identify_over_expressed_genes()
+    identify_over_expressed_genes(cellchat, )
 
     observed = {
         "selected_features": selected_features_sorted(cellchat),
@@ -499,7 +529,7 @@ def test_identify_over_expressed_genes_condition_mode_runs_per_group(
     cellchat = make_cellchat(conditioned, sample_column="condition")
 
     cellchat.subset_data(features=pbmc3k_feature_panel)
-    cellchat.identify_over_expressed_genes(
+    identify_over_expressed_genes(cellchat, 
         positive_samples=["cond_a"],
         only_pos=False,
         threshold_p=1.0,

@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
-
 import anndata as ad
 import numpy as np
 import pandas as pd
@@ -44,32 +41,6 @@ def make_cellchat(adata: ad.AnnData, *, sample_column: str | None = None) -> Cel
 		group_by_column="cell_type",
 		sample_column=sample_column,
 	)
-
-
-def feature_values_sorted(values: pd.Series | pd.Index | np.ndarray | Sequence[str]) -> list[str]:
-    if isinstance(values, pd.Series) or isinstance(values, pd.Index) or isinstance(values, np.ndarray):
-        return sorted(values.astype(str).tolist())
-    return sorted([str(value) for value in values])
-
-
-def selected_features_sorted(cellchat: CellChat) -> list[str]:
-    assert cellchat.selected_features is not None
-    return sorted(cellchat.selected_features.astype(str).tolist())
-
-
-def feature_table(feature_table: pd.DataFrame | None) -> list[tuple]:
-	if feature_table is None or feature_table.empty:
-		return []
-
-	normalized = feature_table.loc[:, ["group", "feature", "logfc"]].copy()
-	normalized["group"] = normalized["group"].astype(str)
-	normalized["feature"] = normalized["feature"].astype(str)
-	normalized["logfc"] = normalized["logfc"].astype(float).round(5) # 5 decimal places matches R settings
-	normalized = normalized.sort_values(["group", "feature", "logfc"], kind="stable")
-	return list(normalized.itertuples(index=False, name=None))
-
-def feature_table_from_ground_truth(feature_table: list[dict[str, object]]) -> list[tuple]:
-	return [(row["group"], row["feature"], row["logFC"]) for row in feature_table]
 
 
 def with_condition_column(adata: ad.AnnData) -> ad.AnnData:

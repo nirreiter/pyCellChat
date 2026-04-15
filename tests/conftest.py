@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 from scipy import sparse
 
-from ._ground_truth import (
+from ._ground_truth import (  # noqa: F401  # pylint: disable=unused-import
     TESTS_DIR,
     ground_truth,
     pytest_addoption,
@@ -68,17 +68,6 @@ def _to_sparse_matrix(matrix: Any) -> sparse.csr_matrix:
         return matrix.tocsr()
     return sparse.csr_matrix(np.asarray(matrix))
 
-
-@pytest.fixture
-def assert_object_state_keys() -> Callable[[dict[str, Any], set[str] | list[str]], None]:
-    def _assert_object_state_keys(
-        snapshot: dict[str, Any],
-        expected_keys: set[str] | list[str],
-    ) -> None:
-        missing = sorted(set(expected_keys) - set(snapshot))
-        assert not missing, f"Missing state keys: {missing}"
-
-    return _assert_object_state_keys
 
 
 def _build_synthetic_adata(*, as_sparse: bool = False) -> ad.AnnData:

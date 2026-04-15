@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, cast
-from dataclasses import dataclass, field
+from typing import Any
 
 import anndata as ad
 import numpy as np
 import pandas as pd
-from ..preprocessing import identify_over_expressed_genes, identify_over_expressed_interactions
-from ..modeling import compute_communication_probability, filter_communication
 
 from ..database import CellChatDB, extract_gene, load_cellchat_db
 from .matrix import get_adata_matrix_checked
@@ -18,15 +15,14 @@ class CellChat:
     group_by_col: str
     sample_col: str
     is_merged: bool
-    experiment_type: str
-    # options: dict[str, Any]
+    options: dict[str, Any]
     selected_features: np.ndarray | None
     selected_features_df: pd.DataFrame | None
     adata_signaling: ad.AnnData | None
     net: dict[str, Any] | None
-    # netP: dict[str, Any]
+    netP: dict[str, Any] | None
     # images: dict[str, Any]
-    db: CellChatDB
+    db: CellChatDB | None
     lr: pd.DataFrame | None
 
     def __init__(
@@ -43,37 +39,85 @@ class CellChat:
         The active grouping and sample metadata are stored canonically in
         ``adata.obs``. ``group_by_col`` and ``sample_col`` point to the
         columns used by downstream APIs. Compatibility accessors such as
-        ``meta`` and ``idents`` are derived from that AnnData-backed state.
+        ``idents`` are derived from that AnnData-backed state.
         """
         print("Creating a python CellChat object from an anndata object...")
-        state = create_cellchat_state(
-            adata=adata,
-            experiment_type=experiment_type,
-            layer=layer,
-            counts_layer=counts_layer,
-            group_by_column=group_by_column,
-            sample_column=sample_column,
+
+        if adata.isbacked:
+            raise NotImplementedError(
+                "Disk-backed adata not currently supported, please load data into memory"
+            )
+        if not isinstance(adata.obs, pd.DataFrame):
+            raise NotImplementedError(
+                "Dataset2D type for adata.obs is not implemented yet"
+            )
+        if not isinstance(adata.var, pd.DataFrame):
+            raise NotImplementedError(
+                "Dataset2D type for adata.var is not implemented yet"
+            )
+        if experiment_type != "RNA":
+            raise NotImplementedError("Only single cell RNA experiments are currently supported")
+
+        if layer is not None and layer not in adata.layers:
+            raise ValueError(
+                f"Layer '{layer}' was not found in the provided AnnData object ('adata.layers')"
+            )
+        if group_by_column not in adata.obs.columns:
+            raise ValueError(
+                "Groupby column "
+                f"'{group_by_column}' was not found in the observation dataframe of the "
+                "provided AnnData object ('adata.obs')"
+            )
+        if sample_column is not None and sample_column not in adata.obs.columns:
+            raise ValueError(
+                f"Sample column '{sample_column}' was not found in the observation dataframe "
+                "of the provided AnnData object ('adata.obs')"
+            )
+
+        matrix = get_adata_matrix_checked(adata, False, layer)
+        matrix_raw = get_adata_matrix_checked(adata, False, counts_layer)
+        
+        obs = adata.obs.copy()
+        if sample_column is None:
+            if "sample" in adata.obs:
+                sample_column = "sample"
+            elif "samples" in adata.obs:
+                sample_column = "samples"
+            else:
+                obs["sample"] = "sample1"
+                obs["sample"] = obs["sample"].astype("category")
+                sample_column = "sample"
+        obs[group_by_column] = obs[group_by_column].astype("category")
+
+        normalized_adata = ad.AnnData(
+            X=matrix,
+            layers={"counts": matrix_raw},
+            obs=obs,
+            var=adata.var.copy(),
         )
-        for field_name in state.__dataclass_fields__:
-            setattr(self, field_name, getattr(state, field_name))
-
-    @property
-    def meta(self) -> pd.DataFrame:
-        """Return the canonical per-cell metadata table.
-
-        This is an AnnData-backed compatibility accessor over ``adata.obs``.
-        """
-        return cast(pd.DataFrame, self.adata.obs)
+        
+        self.adata = normalized_adata
+        self.group_by_col = group_by_column
+        self.sample_col = sample_column
+        self.is_merged = False
+        self.options = {"mode": "single", "datatype": experiment_type}
+        self.selected_features = None
+        self.selected_features_df = None
+        self.adata_signaling = None
+        self.net = None
+        self.netP = None
+        #self.images = None
+        self.db = None
+        self.lr = None
 
     @property
     def idents(self) -> pd.Series:
-        """Return the active grouping series derived from ``adata.obs``."""
+        """Return the active per-cell grouping derived from ``adata.obs``."""
         return self.adata.obs[self.group_by_col]
 
     def load_database(self, species: str):
         self.db = load_cellchat_db(species)
         
-
     def subset_data(
         self,
         features: list[str] | None = None,
@@ -105,120 +149,21 @@ class CellChat:
             if self.db is not None:
                 db_genes = extract_gene(self.db)
                 selected = self.adata.var_names.intersection(db_genes)
-                self.adata_signaling = self.adata[:, selected].copy()  # pyright: ignore[reportArgumentType]
+                self.adata_signaling = self.adata[:, selected].copy()
             else:
                 self.adata_signaling = self.adata.copy()
             return
 
         selected_features = self.adata.var_names.intersection(features)
-        self.adata_signaling = self.adata[:, selected_features].copy()  # pyright: ignore[reportArgumentType]
-
-    def identify_over_expressed_genes(
-        self,
-        inplace = True,
-        min_cells: int = 10,
-        only_pos: bool = True,
-        features: list[str] | pd.Index[str] | None = None,
-        threshold_percent_expressing: float = 0,
-        threshold_logfc: float = 0,
-        threshold_p: float = 0.05,
-        do_differential_expression=True,
-        positive_samples: list[str] | None = None,
-        ignore_groups_for_differential_expression=False,
-    ):
-        return identify_over_expressed_genes(
-            self,
-            inplace = inplace, 
-            min_cells = min_cells, 
-            only_pos = only_pos,
-            features = features,
-            threshold_percent_expressing = threshold_percent_expressing,
-            threshold_logfc = threshold_logfc,
-            threshold_p = threshold_p,
-            do_differential_expression = do_differential_expression,
-            positive_samples = positive_samples,
-            ignore_groups_for_differential_expression = ignore_groups_for_differential_expression,
-        )
-        
-
-    def identify_over_expressed_interactions(
-        self,
-        variable_both: bool = True,
-        features=None,
-        inplace: bool = True,
-    ):
-        return identify_over_expressed_interactions(
-            self,
-            variable_both=variable_both,
-            features=features,
-            inplace=inplace,
-        )
-
-    def compute_communication_probability(
-        self,
-        type: str = "triMean",
-        trim: float = 0.1,
-        lr_use: pd.DataFrame | None = None,
-        raw_use: bool = True,
-        population_size: bool = False,
-        distance_use: bool = True,
-        interaction_range: float = 250,
-        scale_distance: float = 0.01,
-        k_min: int = 10,
-        contact_dependent: bool = True,
-        contact_range: float | None = None,
-        contact_knn_k: int | None = None,
-        contact_dependent_forced: bool = False,
-        do_symmetric: bool = True,
-        nboot: int = 100,
-        seed_use: int = 1,
-        Kh: float = 0.5,
-        n: float = 1,
-    ):
-        return compute_communication_probability(
-            self,
-            type=type,
-            trim=trim,
-            lr_use=lr_use,
-            raw_use=raw_use,
-            population_size=population_size,
-            distance_use=distance_use,
-            interaction_range=interaction_range,
-            scale_distance=scale_distance,
-            k_min=k_min,
-            contact_dependent=contact_dependent,
-            contact_range=contact_range,
-            contact_knn_k=contact_knn_k,
-            contact_dependent_forced=contact_dependent_forced,
-            do_symmetric=do_symmetric,
-            nboot=nboot,
-            seed_use=seed_use,
-            Kh=Kh,
-            n=n,
-        )
-
-    def filter_communication(
-        self,
-        min_cells: int = 10,
-        min_samples: int | None = None,
-        rare_keep: bool = False,
-        non_filter_keep: bool = False,
-    ):
-        return filter_communication(
-            self,
-            min_cells=min_cells,
-            min_samples=min_samples,
-            rare_keep=rare_keep,
-            non_filter_keep=non_filter_keep,
-        )
-
-    def compute_communication_probability_pathways(self):
-        raise NotImplementedError()
+        self.adata_signaling = self.adata[:, selected_features].copy()
 
     def aggregate_net(self):
         raise NotImplementedError()
 
     def network_analysis_compute_centrality(self):
+        raise NotImplementedError()
+    
+    def lift_groups(self, new_groups: list[str]):
         raise NotImplementedError()
 
     def __str__(self) -> str:
@@ -226,19 +171,16 @@ class CellChat:
         if not self.is_merged:
             result += (
                 "A python CellChat object created from a single "
-                f"{self.experiment_type} dataset of {self.adata.n_vars} genes by "
+                f"{self.options['experiment_type']} dataset of {self.adata.n_vars} genes by "
                 f"{self.adata.n_obs} cells"
             )
         else:
             raise NotImplementedError("Merged datasets are not currently supported")
 
-        if self.experiment_type == "spatial":
+        if self.options["experiment_type"] == "spatial":
             raise NotImplementedError("Spatial datasets are not currently supported")
 
         return result
-
-    def lift_groups(self, new_groups: list[str]):
-        raise NotImplementedError()
 
     def __getitem__(self):
         raise NotImplementedError()
@@ -252,116 +194,3 @@ class CellChat:
 
 def merge():
     raise NotImplementedError()
-
-
-@dataclass(slots=True)
-class CellChatState:
-    adata: ad.AnnData
-    group_by_col: str
-    sample_col: str
-    is_merged: bool
-    experiment_type: str
-    options: dict[str, Any]
-    selected_features: np.ndarray | None = None
-    selected_features_df: pd.DataFrame | None = None
-    adata_signaling: ad.AnnData | None = None
-    net: dict[str, Any] = field(default_factory=dict)
-    netP: dict[str, Any] = field(default_factory=dict)
-    images: dict[str, Any] = field(default_factory=dict)
-    db: Any = None
-    lr: pd.DataFrame | None = None
-    var_features: dict[str, Any] = field(default_factory=dict)
-
-
-def create_cellchat_state(
-    adata: ad.AnnData,
-    experiment_type: str = "RNA",
-    layer: str | None = None,
-    counts_layer: str | None = "counts",
-    group_by_column: str = "cluster",
-    sample_column: str | None = None,
-) -> CellChatState:
-    """Create normalized CellChat state backed by AnnData.
-
-    The Python object keeps per-cell metadata canonically in ``adata.obs``.
-    ``group_by_col`` and ``sample_col`` identify the active categorical
-    columns used by public APIs, rather than duplicating that state into
-    independent mutable attributes.
-    """
-    if adata.isbacked:
-        raise NotImplementedError(
-            "Disk-backed adata not currently supported, please load data into memory"
-        )
-    if experiment_type != "RNA":
-        raise NotImplementedError("Only single cell RNA experiments are currently supported")
-
-    if layer is not None and layer not in adata.layers:
-        raise ValueError(
-            f"Layer '{layer}' was not found in the provided AnnData object ('adata.layers')"
-        )
-    if group_by_column not in adata.obs.columns:
-        raise ValueError(
-            "Groupby column "
-            f"'{group_by_column}' was not found in the observation dataframe of the "
-            "provided AnnData object ('adata.obs')"
-        )
-    if sample_column is not None and sample_column not in adata.obs.columns:
-        raise ValueError(
-            "Sample column "
-            f"'{sample_column}' was not found in the observation dataframe of the "
-            "provided AnnData object ('adata.obs')"
-        )
-
-    matrix = get_adata_matrix_checked(adata, False, layer)
-    matrix_raw = get_adata_matrix_checked(adata, False, counts_layer)
-
-    meta = adata.obs.copy()
-    resolved_sample_column = _resolve_sample_column(meta, sample_column)
-    meta[resolved_sample_column] = _coerce_factor_like(
-        meta[resolved_sample_column],
-        name=resolved_sample_column,
-    )
-    meta[group_by_column] = _coerce_factor_like(meta[group_by_column], name=group_by_column)
-
-    normalized_adata = ad.AnnData(
-        X=matrix,
-        layers={"counts": matrix_raw},
-        obs=meta,
-        var=adata.var.copy(),
-    )
-
-    return CellChatState(
-        adata=normalized_adata,
-        group_by_col=group_by_column,
-        sample_col=resolved_sample_column,
-        is_merged=False,
-        experiment_type=experiment_type,
-        options={"mode": "single", "datatype": experiment_type},
-        var_features={"features": None, "features_info": None},
-    )
-
-
-def _resolve_sample_column(meta: pd.DataFrame, sample_column: str | None) -> str:
-    if sample_column is not None:
-        return sample_column
-    if "sample" in meta.columns:
-        return "sample"
-    meta["sample"] = "sample1"
-    return "sample"
-
-
-def _coerce_factor_like(values: pd.Series, name: str | None = None) -> pd.Series:
-    if isinstance(values.dtype, pd.CategoricalDtype):
-        present_values = set(values.astype(str))
-        categories = [
-            category
-            for category in values.cat.categories.astype(str).tolist()
-            if category in present_values
-        ]
-        dtype = pd.CategoricalDtype(categories=categories, ordered=values.cat.ordered)
-        return pd.Series(values.astype(str).astype(dtype), index=values.index, name=name)
-
-    series = values.astype("string")
-    categories = pd.unique(series).tolist()
-    dtype = pd.CategoricalDtype(categories=categories, ordered=True)
-    return pd.Series(series.astype(dtype), index=values.index, name=name)
